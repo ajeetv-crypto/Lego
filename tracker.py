@@ -13,24 +13,16 @@ def send_telegram(message):
     payload = {"chat_id": CHAT_ID, "text": message}
     requests.post(url, data=payload)
 
-# ---------------- AMAZON SCRAPER ----------------
-def get_price_amazon(url):
-    headers = {"User-Agent": "Mozilla/5.0"}
-    page = requests.get(url, headers=headers)
-    soup = BeautifulSoup(page.text, "html.parser")
-
-    # Amazon updated selector
-    price_tag = soup.select_one("#corePrice_feature_div .a-price-whole")
-
-    if price_tag:
-        price_text = price_tag.text.replace(",", "").replace("₹", "").strip()
-        return int(price_text)
-    return None
-
-# ---------------- FLIPKART SCRAPER ----------------
+# ---------------- FLIPKART SCRAPER ONLY ----------------
 def get_price_flipkart(url):
-    headers = {"User-Agent": "Mozilla/5.0"}
-    page = requests.get(url, headers=headers)
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                      "AppleWebKit/537.36 (KHTML, like Gecko) "
+                      "Chrome/120.0.0.0 Safari/537.36",
+        "Accept-Language": "en-US,en;q=0.9"
+    }
+
+    page = requests.get(url, headers=headers, timeout=10)
     soup = BeautifulSoup(page.text, "html.parser")
 
     price_tag = soup.find("div", {"class": "_30jeq3 _16Jk6d"})
@@ -40,21 +32,19 @@ def get_price_flipkart(url):
         return int(price_text)
     return None
 
-# --------------------------------------------------
+# --------------------------------------------------------
 
 print("Checking URL:", URL)
 
-if "flipkart.com" in URL:
-    price = get_price_flipkart(URL)
-else:
-    price = get_price_amazon(URL)
+price = get_price_flipkart(URL)
 
 print("Fetched Price =", price)
 
-if price:
+if price is not None:
     if price <= TARGET_PRICE:
         send_telegram(f"🔥 Price alert!\nCurrent price = ₹{price}\n{URL}")
     else:
         print(f"No alert. Current price: ₹{price}")
 else:
-    print("❌ Could not fetch price. HTML structure changed.")
+    print("❌ Could not fetch price. Flipkart changed HTML.")
+
