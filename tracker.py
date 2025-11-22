@@ -1,6 +1,7 @@
 import requests
-from bs4 import BeautifulSoup
 import os
+import json
+import re
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
@@ -12,27 +13,44 @@ def send_telegram(message):
     payload = {"chat_id": CHAT_ID, "text": message}
     requests.post(url, data=payload)
 
-# ----------- JINA BYPASS REQUEST -----------
-def bypass_get(url):
-    headers = {"User-Agent": "Mozilla/5.0"}
-    # Jina proxy bypasses Flipkart/Amazon block
-    proxy_url = f"https://r.jina.ai/{url}"
-    return requests.get(proxy_url, headers=headers, timeout=20)
-
-# ----------- Flipkart scraper -----------
-def get_price_flipkart(url):
-    page = bypass_get(url)  # <-- Use bypass instead of direct request
-    soup = BeautifulSoup(page.text, "html.parser")
-
-    price_tag = soup.find("div", {"class": "_30jeq3 _16Jk6d"})
-    if price_tag:
-        return int(price_tag.text.replace("₹", "").replace(",", "").strip())
+def extract_product_id(url):
+    """Extract product ID from Flipkart URL (works for any format)."""
+    match = re.search(r"pid=([A-Z0-9]+)", url)
+    if match:
+        return match.group(1)
     return None
 
-# ---------- MAIN ----------
+def get_price_flipkart_api(url):
+    pid = extract_product_id(url)
+    if not pid:
+        print("❌ Could not extract PID from URL")
+        return None
+
+    api_url = f"https://www.flipkart.com/api/3/page/dynamic/product?pid={pid}"
+
+    headers = {
+        "User-Agent": "Mozilla/5.0"
+    }
+
+    r = requests.get(api_url, headers=headers)
+    if r.status_code != 200:
+        print("❌ API call failed")
+        return None
+
+    data = r.json()
+
+    try:
+        price = (
+            data["RESPONSE"]["productInfo"]["value"]["pricing"]["finalPrice"]["value"]
+        )
+        return int(price)
+    except:
+        return None
+
 print("Checking URL:", URL)
 
-price = get_price_flipkart(URL)
+price = get_price_flipkart_api(URL)
+
 print("Fetched Price =", price)
 
 if price:
@@ -41,4 +59,4 @@ if price:
     else:
         print(f"No alert. Current price: ₹{price}")
 else:
-    print("❌ Could not fetch price via Jina bypass.")
+    print("❌ Could not fetch price")
