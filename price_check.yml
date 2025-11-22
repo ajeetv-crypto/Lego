@@ -2,8 +2,8 @@ name: Price Tracker
 
 on:
   schedule:
-    - cron: "0 * * * *"   # run every hour
-  workflow_dispatch:
+    - cron: "*/30 * * * *"   # run every 30 minutes
+  workflow_dispatch:         # allow manual run
 
 jobs:
   check_price:
@@ -21,10 +21,11 @@ jobs:
       - name: Install dependencies
         run: pip install requests beautifulsoup4
 
-      - name: Run script
+      - name: Run Flipkart Price Tracker
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
           TARGET_PRICE: ${{ secrets.TARGET_PRICE }}
-          URL: ${{ secrets.URL }}
+          URL: ${{ secrets.URL }}        # only Flipkart URL
         run: python tracker.py
+
