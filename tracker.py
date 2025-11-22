@@ -12,55 +12,59 @@ def send_telegram(message):
     payload = {"chat_id": CHAT_ID, "text": message}
     requests.post(api_url, data=payload)
 
-def extract_product_id(url):
-    # 1. Try pid=XXXX
-    m = re.search(r"pid=([A-Z0-9]+)", url)
+def extract_pid(url):
+    # Extract the "itmb0b862b085ec2" part
+    m = re.search(r'/p/([^/?]+)', url)
     if m:
         return m.group(1)
-    # 2. Try /p/<product-id>
-    m = re.search(r"/p/([A-Za-z0-9\-]+)", url)
+
+    # Fallback: pid=XXXX
+    m = re.search(r'pid=([A-Z0-9]+)', url, re.I)
     if m:
         return m.group(1)
-    # fallback: load page HTML and search for productId
-    try:
-        resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
-        html = resp.text
-        m2 = re.search(r'"productId":"([A-Z0-9]+)"', html)
-        if m2:
-            return m2.group(1)
-    except Exception as e:
-        print("Error extracting PID from HTML:", e)
+
     return None
 
-def get_price_flipkart_api(url):
-    pid = extract_product_id(url)
+def get_price_flipkart(url):
+    pid = extract_pid(url)
     if not pid:
-        print("❌ Could not extract PID from URL")
+        print("❌ Could not extract PID")
         return None
 
-    api_url = f"https://www.flipkart.com/api/3/page/dynamic/product?pid={pid}"
-    headers = {"User-Agent": "Mozilla/5.0"}
-    resp = requests.get(api_url, headers=headers)
+    api_url = f"https://www.flipkart.com/api/3/product-summary/sku/{pid}"
+
+    headers = {
+        "User-Agent": "Mozilla/5.0",
+        "Accept": "application/json",
+        "Origin": "https://www.flipkart.com",
+        "Referer": url
+    }
+
+    resp = requests.get(api_url, headers=headers, timeout=15)
+
     if resp.status_code != 200:
-        print("❌ API failed, status:", resp.status_code)
+        print("❌ API failed:", resp.status_code)
         return None
 
     data = resp.json()
     try:
-        price = data["RESPONSE"]["productInfo"]["value"]["pricing"]["finalPrice"]["value"]
+        price = (
+            data["RESPONSE"]["kartData"]["primaryProduct"]["value"]
+                ["price"]["finalPrice"]["value"]
+        )
         return int(price)
     except Exception as e:
-        print("❌ Error parsing API JSON:", e)
+        print("❌ JSON parse error:", e)
         return None
 
 print("Checking URL:", URL)
-price = get_price_flipkart_api(URL)
+price = get_price_flipkart(URL)
 print("Fetched Price =", price)
 
 if price is not None:
     if price <= TARGET_PRICE:
         send_telegram(f"🔥 Price alert!\nCurrent price = ₹{price}\n{URL}")
     else:
-        print(f"No alert. Current price: ₹{price}")
+        print("No alert. Current price:", price)
 else:
     print("❌ Could not fetch price.")
